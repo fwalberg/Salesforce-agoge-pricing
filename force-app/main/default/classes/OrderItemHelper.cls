@@ -28,8 +28,9 @@ public with sharing class OrderItemHelper {
         }
     }
 
-    // FRETE - CORREÇÃO DE BUGS  
-    public static Map<OrderItem, Freight__c> searchFreight(List<OrderItem> orderItemList) {
+    public static Map<String, Set<Id>> searchData(List<OrderItem> orderItemList) {
+        Map<String, Set<Id>> setIdMap = new Map<String, Set<Id>>();
+
         Set<Id> productIdSet = new Set<Id>();
         Set<Id> orderIdSet = new Set<Id>();
         Set<Id> hierarchyIdSet = new Set<Id>();
@@ -101,27 +102,64 @@ public with sharing class OrderItemHelper {
             hierarchyIdSet.add(product.ProductHierarchy__c);
         }
 
+        setIdMap.put('productIdSet', productIdSet);
+        setIdMap.put('orderIdSet', orderIdSet);
+        setIdMap.put('hierarchyIdSet', hierarchyIdSet);
+        setIdMap.put('distributionIdSet', distributionIdSet);
+        setIdMap.put('addressIdSet', addressIdSet);
+        setIdMap.put('cityIdSet', cityIdSet);
+        setIdMap.put('stateIdSet', stateIdSet);
+        setIdMap.put('countryIdSet', countryIdSet);
+        setIdMap.put('accountsIdSet', accountsIdSet);
+        setIdMap.put('groupIdSet', groupIdSet);
+        return setIdMap;
+    }
+
+    // FRETE
+    public static Map<OrderItem, Freight__c> searchFreight(List<OrderItem> orderItemList) {
+        Map<String, Set<Id>> idSetMap = searchData(orderItemList);
+        
         List<Freight__c> freightList = [
             SELECT Id, Product__c, ProductHierarchy__c, DistributionCenter__c, City__c, State__c, Country__c, Value__c, Score__c, Status__c
             FROM Freight__c
-            WHERE (Product__c IN: productIdSet OR Product__c = null) AND 
-            (ProductHierarchy__c IN: hierarchyIdSet OR ProductHierarchy__c = null) AND
-            (DistributionCenter__c IN: distributionIdSet OR DistributionCenter__c = null) AND
-            (City__c IN: cityIdSet OR  City__c = null) AND
-            (State__c IN: stateIdSet OR  State__c = null) AND
-            (Country__c IN: countryIdSet OR  Country__c = null) 
+            WHERE (Product__c IN: idSetMap.get('roductIdSet') OR Product__c = null) AND 
+            (ProductHierarchy__c IN: idSetMap.get('hierarchyIdSet') OR ProductHierarchy__c = null) AND
+            (DistributionCenter__c IN: idSetMap.get('distributionIdSet') OR DistributionCenter__c = null) AND
+            (City__c IN: idSetMap.get('cityIdSet') OR  City__c = null) AND
+            (State__c IN: idSetMap.get('stateIdSet') OR  State__c = null) AND
+            (Country__c IN: idSetMap.get('countryIdSet') OR  Country__c = null) AND Status__c = 'Aprovado'
             ORDER BY Score__c  DESC
         ];
 
-        Map<OrderItem, Freight__c> orderItemToFreight = new Map<OrderItem, Freight__c>();
+        Map<Id, Order> orderMap = new Map<Id, Order>([
+            SELECT Id, AccountId, DistributionCenter__c,
+            Address__r.City__c,
+            Address__r.City__r.State__c,
+            Address__r.City__r.State__r.Country__c
+            FROM Order
+            WHERE Id IN: idSetMap.get('orderIdSet')
+        ]);
 
+        Map<Id, Product2> productMap = new Map<Id, Product2>([
+            SELECT Id, ProductHierarchy__c, ProductionCost__c
+            FROM Product2
+            WHERE Id IN: idSetMap.get('productIdSet')
+        ]);
+
+        Map<OrderItem, Freight__c> orderItemToFreight = orderItemToFreigth(orderItemList, freightList, orderMap, productMap);
+
+        return orderItemToFreight;
+    }
+
+    public static Map<OrderItem, Freight__c> orderItemToFreigth(List<OrderItem> orderItemList, List<Freight__c> freightList, Map<Id, Order> orderMap, Map<Id, Product2> productMap) {       
+        Map<OrderItem, Freight__c> orderItemToFreight = new Map<OrderItem, Freight__c>();
+         
         for(OrderItem orderItem: orderItemList) {
             orderItemToFreight.put(orderItem, null);
 
-            for(Freight__c freight : freightList) {
+            for (Freight__c freight : freightList) {
                 if(matchFreight(freight, OrderItem, orderMap, productMap)) {
                     orderItemToFreight.put(orderItem, freight);
-                    System.debug('matchFreight => ' + matchFreight(freight, OrderItem, orderMap, productMap));
                     break;
                 }
             }
@@ -136,9 +174,6 @@ public with sharing class OrderItemHelper {
                 orderItemWithFreight.FreightValue__c = freight.Value__c;
             }
         }
-
-        calcPrice(orderItemList, productMap.values());
-
         return orderItemToFreight;
     }
 
@@ -154,14 +189,20 @@ public with sharing class OrderItemHelper {
     }
 
     // Margem
-    public static void searchMargin (List<OrderItem> orderItemList) {
-        Set<Id> orderIdSet = new Set<Id>();
-        Set<Id> productIdSet = new Set<Id>();
+    public static Map<OrderItem, Margin__c> searchMargin (List<OrderItem> orderItemList) {
+        Map<String, Set<Id>> idSetMap = searchData(orderItemList);
 
-        for (OrderItem orderItem : orderItemList) {
-            orderIdSet.add(orderItem.OrderId);
-            productIdSet.add(orderItem.product2Id);
-        }
+        List<Margin__c> MarginList = [
+            SELECT Id, Product__c, ProductHierarchy__c, Account__c, AccountGroup__c, DistributionCenter__c, City__c, State__c, Country__c, Value__c, Score__c
+            FROM Margin__c
+            WHERE (Product__c IN: idSetMap.get('productIdSet') OR Product__c = null) AND 
+            (ProductHierarchy__c IN: idSetMap.get('hierarchyIdSet') OR ProductHierarchy__c = null) AND
+            (Account__c IN: idSetMap.get('accountsIdSet') OR Account__c = null) AND
+            (AccountGroup__c IN: idSetMap.get('groupIdSet') OR AccountGroup__c = null) AND
+            (DistributionCenter__c IN: idSetMap.get('distributionIdSet') OR DistributionCenter__c = null) AND
+            (State__c IN: idSetMap.get('stateIdSet') OR  State__c = null) AND Status__c = 'Aprovado'
+            ORDER BY Score__c DESC 
+        ];
 
         Map<Id, Order> orderMap = new Map<Id, Order>([
             SELECT Id, AccountId, Account.AccountGroup__c, DistributionCenter__c,
@@ -169,69 +210,40 @@ public with sharing class OrderItemHelper {
             Address__r.City__r.State__c,
             Address__r.City__r.State__r.Country__c
             FROM Order
-            WHERE Id IN: orderIdSet
+            WHERE Id IN: idSetMap.get('orderIdSet')
         ]);
 
         Map<Id, Product2> productMap = new Map<Id, Product2>([
             SELECT Id, ProductHierarchy__c
             FROM Product2
-            WHERE Id IN: productIdSet
+            WHERE Id IN: idSetMap.get('productIdSet')
         ]);
 
-        Map<OrderItem, Margin__c> orderItemToMargin = searchMargin(orderItemList, orderMap, productMap);
+        Map<OrderItem, Margin__c> orderItemToMargin = orderItemToMargin(orderItemList, MarginList, orderMap, productMap);
+
+        return orderItemToMargin;
+    }
+
+    public static Map<OrderItem, Margin__c> orderItemToMargin(List<OrderItem> orderItemList, List<Margin__c> marginList, Map<Id, Order> orderMap,  Map<Id, Product2> ProductMap) {
+        
+        Map<OrderItem, Margin__c> orderItemToMargin = new Map<OrderItem, Margin__c>();
+
+        for(OrderItem orderItem: orderItemList) {
+            orderItemToMargin.put(orderItem, null);
+
+            for(Margin__c margin : marginList) {
+                if(matchMargin(margin, OrderItem, orderMap, productMap)) {
+                    orderItemToMargin.put(orderItem, margin);
+                    break;
+                }
+            }
+        }
 
         for(OrderItem orderItem : orderItemToMargin.keySet()) {
             Margin__c priceMargin = orderItemToMargin.get(orderItem);
 
             if(priceMargin != null) {
                 orderItem.MarginPercentage__c = priceMargin.Value__c;
-
-            }
-        }
-        //return new List<OrderItem> (orderItemToMargin.keySet());
-    }
-
-    public static Map<OrderItem, Margin__c> searchMargin(List<OrderItem> orderItemList,  Map<Id, Order> orderMap,  Map<Id, Product2> ProductMap) {
-        Set<Id> productIdSet = new Set<Id>();
-        Set<Id> hierarchyIdSet = new Set<Id>();
-        Set<Id> accountsIdSet = new Set<Id>();
-        Set<Id> groupIdSet = new Set<Id>();
-        Set<Id> distributionIdSet = new Set<Id>();
-        Set<Id> stateIdSet = new Set<Id>();
-
-        for (Order order : orderMap.values()) {
-            accountsIdSet.add(order.AccountId);
-            groupIdSet.add(order.Account.AccountGroup__c);
-            distributionIdSet.add(order.DistributionCenter__c);
-        }
-
-        for (Product2 product : productMap.values()) {
-            productIdSet.add(product.Id);
-            productIdSet.add(product.ProductHierarchy__c);
-        }
-
-        List<Margin__c> MarginList = [
-            SELECT Id, Product__c, ProductHierarchy__c, Account__c, AccountGroup__c, DistributionCenter__c, City__c, State__c, Country__c, Value__c, Score__c
-            FROM Margin__c
-            WHERE (Product__c IN: productIdSet OR Product__c = null) AND 
-            (ProductHierarchy__c IN: hierarchyIdSet OR ProductHierarchy__c = null) AND
-            (Account__c IN: accountsIdSet OR Account__c = null) AND
-            (AccountGroup__c IN: groupIdSet OR AccountGroup__c = null) AND
-            (DistributionCenter__c IN: distributionIdSet OR DistributionCenter__c = null) AND
-            (State__c IN: stateIdSet OR  State__c = null) 
-            ORDER BY Score__c DESC 
-        ];
-
-        Map<OrderItem, Margin__c> orderItemToMargin = new Map<OrderItem, Margin__c>();
-
-        for(OrderItem orderItem: orderItemList) {
-            orderItemToMargin.put(orderItem, null);
-
-            for(Margin__c margin : MarginList) {
-                if(matchMargin(margin, OrderItem, orderMap, productMap)) {
-                    orderItemToMargin.put(orderItem, margin);
-                    break;
-                }
             }
         }
         return orderItemToMargin;
@@ -248,90 +260,28 @@ public with sharing class OrderItemHelper {
         (String.isBlank(margin.Country__c) || margin.Country__c == orderMap.get(orderItem.OrderId).Address__r.City__r.State__r.Country__c);
     }
 
-    // IMPOSTO
-    /**
-        SELECIONAR O IMPOSTO COM BASE NO PRODUTO, CENTRO DE DISTRIBUIÇÃO E ESTADO 
-     */
+    // IMPOSTO - SELECIONAR O IMPOSTO COM BASE NO PRODUTO, CENTRO DE DISTRIBUIÇÃO E ESTADO 
     public static Map<OrderItem, Tax__c> searchTax(List<OrderItem> orderItemList) {
-        Set<Id> productIdSet = new Set<Id>();
-        Set<Id> orderIdSet = new Set<Id>();
-        Set<Id> hierarchyIdSet = new Set<Id>();
-        Set<Id> distributionIdSet = new Set<Id>();
-        Set<Id> addressIdSet = new Set<Id>();
-        Set<Id> cityIdSet = new Set<Id>();
-        Set<Id> stateIdSet = new Set<Id>();
-        Set<Id> countryIdSet = new Set<Id>();  
-        Set<Id> accountsIdSet = new Set<Id>();
-        Set<Id> groupIdSet = new Set<Id>();
+        Map<String, Set<Id>> idSetMap = searchData(orderItemList);
 
-        for (OrderItem orderItem : orderItemList) {
-            productIdSet.add(orderItem.Product2Id);
-            orderIdSet.add(orderItem.OrderId);
-        }
-        
         Map<Id, Order> orderMap = new Map<Id, Order>([
-            SELECT Id, AccountId, DistributionCenter__c,
-            Address__r.City__c,
-            Address__r.City__r.State__c,
-            Address__r.City__r.State__r.Country__c
+            SELECT Id, DistributionCenter__c, Address__r.City__r.State__c
             FROM Order
-            WHERE Id IN: orderIdSet
+            WHERE Id IN: idSetMap.get('orderIdSet')
         ]);
         
-        for (Order order : orderMap.values()) {
-            accountsIdSet.add(order.AccountId);
-            distributionIdSet.add(order.DistributionCenter__c);
-            addressIdSet.add(order.Address__c);
-        }
-
-        List<AccountAddress__c> addressList = [
-            SELECT Id, Account__c, City__c
-            FROM AccountAddress__c
-            WHERE Id IN: addressIdSet
-        ];
-
-        for (AccountAddress__c address : addressList) {
-            cityIdSet.add(address.City__c);
-        }
-
-        List<City__c> cityList = [
-            SELECT Id, State__c
-            FROM City__c
-            WHERE Id IN: cityIdSet
-        ];
-
-        for (City__c city : cityList) {
-            stateIdSet.add(city.State__c);
-        }
-
-        List<State__c> stateList = [
-            SELECT Id, Country__c
-            FROM State__c
-            WHERE Id IN: stateIdSet
-        ];
-
-        for (State__c state : stateList) {
-            countryIdSet.add(state.Country__c);
-        }
-
-        Map<Id, Product2> productMap = new Map<Id, Product2>([
-            SELECT Id, ProductHierarchy__c, ProductionCost__c
-            FROM Product2
-            WHERE Id IN: productIdSet
-        ]);
-
-        for (Product2 product : productMap.values()) {
-            hierarchyIdSet.add(product.ProductHierarchy__c);
-        }
-
         List<Tax__c> taxList = [
             SELECT Id, Product__c, DistributionCenter__c, State__c, TaxCost__c, Status__c
             FROM Tax__c
             WHERE Status__c = 'Aprovado'
         ];
 
-        System.debug('TaxList => ' + taxList);
+        Map<OrderItem, Tax__c> orderItemToTax = orderItemToTax(orderItemList, taxList, orderMap);
 
+        return orderItemToTax;
+    }
+
+    public static Map<OrderItem, Tax__c> orderItemToTax(List<OrderItem> orderItemList, List<Tax__c> taxList, Map<Id, Order> orderMap) {
         Map<OrderItem, Tax__c> orderItemToTax = new Map<OrderItem, Tax__c>();
 
         for(OrderItem orderItem: orderItemList) {
@@ -347,15 +297,12 @@ public with sharing class OrderItemHelper {
 
         for (OrderItem orderItemWithTax : orderItemToTax.keySet()) {   
             Tax__c tax = orderItemToTax.get(orderItemWithTax);
-            System.debug('OrderItem with tax => ' + tax);
-            
-            System.debug('OrderItem => ' + orderItemWithTax);
-            System.debug('Tax => ' + tax);
+
             if (tax != null) {
                orderItemWithTax.TaxPercentage__c = tax.TaxCost__c;
             }
         }
-        return orderItemToTax;
+        return orderItemToTax;  
     }
 
     public static Boolean matchTax(Tax__c tax, OrderItem orderItem, Map<Id, Order> orderMap) {
@@ -383,9 +330,14 @@ public with sharing class OrderItemHelper {
             Product2 product = calcProductPriceMap.get(orderItemPrice);
         
             if (product != null) {
-                orderItemPrice.ProductionCost__c = product.ProductionCost__c;
+                Decimal productCost = product.ProductionCost__c;
+                // Decimal freightValue = orderItem.FreightValue__c;
+                // Decimal taxPercentage = orderItem.TaxPercentage__c;
+
+                orderItemPrice.ProductionCost__c = productCost;
+                //orderItemPrice.FinalPrice__c = (orderItemPrice.ProductionCost__c + orderItemPrice.FreightValue__c) * (1 + (orderItemPrice.TaxPercentage__c/100)) * (1 + (orderItemPrice.MarginPercentage__c / 100));
+
                 // orderItemPrice.PriceWithoutMargin__c = ((product.ProductionCost__c + orderItemPrice.FreightValue__c) * (1 + (orderItemPrice.TaxPercentage__c / 100)));
-                // orderItemPrice.FinalPrice__c = (orderItemPrice.ProductionCost__c + orderItemPrice.FreightValue__c) * (1 + (orderItemPrice.TaxPercentage__c/100)) * (1 + (orderItemPrice.MarginPercentage__c / 100));
                 // orderItemPrice.Discount__c = (orderItemPrice.FinalPrice__c - orderItemPrice.UnitPrice) / orderItemPrice.FinalPrice__c;
             }
         }
