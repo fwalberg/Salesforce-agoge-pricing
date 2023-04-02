@@ -16,6 +16,7 @@ public with sharing class OrderItemTriggerHandler {
         OrderItemHelper.searchFreight(this.newRecords);
         OrderItemHelper.searchMargin(this.newRecords);
         OrderItemHelper.searchTax(this.newRecords);
+        OrderItemHelper.calcValues(this.newRecords);
 
     }
 

@@ -102,6 +102,16 @@ public with sharing class OrderItemHelper {
             hierarchyIdSet.add(product.ProductHierarchy__c);
         }
 
+        List<Account> accountList = [
+            SELECT Id, AccountGroup__c
+            FROM Account
+            WHERE Id IN: accountsIdSet
+        ];
+
+        for (Account account : accountList) {
+            groupIdSet.add(account.AccountGroup__c);
+        }
+
         setIdMap.put('productIdSet', productIdSet);
         setIdMap.put('orderIdSet', orderIdSet);
         setIdMap.put('hierarchyIdSet', hierarchyIdSet);
@@ -192,7 +202,7 @@ public with sharing class OrderItemHelper {
     public static Map<OrderItem, Margin__c> searchMargin (List<OrderItem> orderItemList) {
         Map<String, Set<Id>> idSetMap = searchData(orderItemList);
 
-        List<Margin__c> MarginList = [
+        List<Margin__c> marginList = [
             SELECT Id, Product__c, ProductHierarchy__c, Account__c, AccountGroup__c, DistributionCenter__c, City__c, State__c, Country__c, Value__c, Score__c
             FROM Margin__c
             WHERE (Product__c IN: idSetMap.get('productIdSet') OR Product__c = null) AND 
@@ -232,13 +242,14 @@ public with sharing class OrderItemHelper {
             orderItemToMargin.put(orderItem, null);
 
             for(Margin__c margin : marginList) {
+
                 if(matchMargin(margin, OrderItem, orderMap, productMap)) {
                     orderItemToMargin.put(orderItem, margin);
                     break;
                 }
             }
         }
-
+    
         for(OrderItem orderItem : orderItemToMargin.keySet()) {
             Margin__c priceMargin = orderItemToMargin.get(orderItem);
 
@@ -249,15 +260,17 @@ public with sharing class OrderItemHelper {
         return orderItemToMargin;
     }
  
-    public static Boolean matchMargin(Margin__c margin, OrderItem orderItem, Map<Id, Order> orderMap, Map<Id, Product2> productMap) {
-        return (String.isBlank(margin.Product__c) || margin.Product__c == orderItem.Product2Id) &&
-        (String.isBlank(margin.ProductHierarchy__c) || margin.ProductHierarchy__c == productMap.get(orderItem.Product2Id).ProductHierarchy__c) &&
-        (String.isBlank(margin.Account__c) || margin.Account__c == orderMap.get(orderItem.OrderId).AccountId) &&
-        (String.isBlank(margin.AccountGroup__c) || margin.AccountGroup__c == orderMap.get(orderItem.OrderId).Account.AccountGroup__c) &&
-        (String.isBlank(margin.DistributionCenter__c) || margin.DistributionCenter__c == orderMap.get(orderItem.OrderId).DistributionCenter__c) &&
-        (String.isBlank(margin.City__c) || margin.City__c == orderMap.get(orderItem.OrderId).Address__r.City__c) &&
-        (String.isBlank(margin.State__c) || margin.State__c == orderMap.get(orderItem.OrderId).Address__r.City__r.State__c) &&
-        (String.isBlank(margin.Country__c) || margin.Country__c == orderMap.get(orderItem.OrderId).Address__r.City__r.State__r.Country__c);
+    public static Boolean matchMargin(Margin__c margin, OrderItem orderItem, Map<Id, Order> orderMap, Map<Id, Product2> productMap) {    
+        Boolean product = (String.isBlank(margin.Product__c) || margin.Product__c == orderItem.Product2Id);
+        Boolean hierarchy = (String.isBlank(margin.ProductHierarchy__c) || margin.ProductHierarchy__c == productMap.get(orderItem.Product2Id).ProductHierarchy__c);
+        Boolean account = (String.isBlank(margin.Account__c) || margin.Account__c == orderMap.get(orderItem.OrderId).AccountId);
+        Boolean accountGroup = (String.isBlank(margin.AccountGroup__c) || margin.AccountGroup__c == orderMap.get(orderItem.OrderId).Account.AccountGroup__c);
+        Boolean distribution = (String.isBlank(margin.DistributionCenter__c) || margin.DistributionCenter__c == orderMap.get(orderItem.OrderId).DistributionCenter__c);
+        Boolean city = (String.isBlank(margin.City__c) || margin.City__c == orderMap.get(orderItem.OrderId).Address__r.City__c);
+        Boolean state = (String.isBlank(margin.State__c) || margin.State__c == orderMap.get(orderItem.OrderId).Address__r.City__r.State__c);
+        Boolean country = (String.isBlank(margin.Country__c) || margin.Country__c == orderMap.get(orderItem.OrderId).Address__r.City__r.State__r.Country__c);
+        
+        return (product || hierarchy) && (account || accountGroup) && (city || state || country) && distribution;
     }
 
     // IMPOSTO - SELECIONAR O IMPOSTO COM BASE NO PRODUTO, CENTRO DE DISTRIBUIÇÃO E ESTADO 
@@ -311,35 +324,38 @@ public with sharing class OrderItemHelper {
         (tax.State__c == orderMap.get(orderItem.OrderId).Address__r.City__r.State__c);
     }
 
-    public static void calcPrice(List<OrderItem> orderItemList, List<Product2> productList) {
+    public static void calcValues(List<OrderItem> orderItemList) { 
+        calcCost(orderItemList);
+        for (OrderItem orderItem : orderItemList) {
+            calcPrices(orderItem);
+        }       
+    }
+
+    public static void calcCost(List<orderItem> orderItemList) {
+       
+        Map<String, Set<Id>> idSetMap = searchData(orderItemList);
         
-        Map<OrderItem, Product2> calcProductPriceMap= new Map<OrderItem, Product2>();
+        List<Product2> productList = [
+            SELECT Id, ProductionCost__c FROM Product2 WHERE Id IN: idSetMap.get('productIdSet')
+        ];
 
-        for(OrderItem orderItem: orderItemList) {
-            calcProductPriceMap.put(orderItem, null);
-
-            for(Product2 product : productList) {
-                if (orderItem.Product2Id == product.Id) {
-                    calcProductPriceMap.put(orderItem, product);
-                }
+        for (OrderItem orderitem : orderItemList) {
+            for (Product2 product : productList) {
+                if (orderItem.Product2Id == product.Id)
+                    orderItem.ProductionCost__c = product.ProductionCost__c;
             }
         }
+    }
 
-        for (OrderItem orderItemPrice : calcProductPriceMap.keySet()) {
-            
-            Product2 product = calcProductPriceMap.get(orderItemPrice);
-        
-            if (product != null) {
-                Decimal productCost = product.ProductionCost__c;
-                // Decimal freightValue = orderItem.FreightValue__c;
-                // Decimal taxPercentage = orderItem.TaxPercentage__c;
-
-                orderItemPrice.ProductionCost__c = productCost;
-                //orderItemPrice.FinalPrice__c = (orderItemPrice.ProductionCost__c + orderItemPrice.FreightValue__c) * (1 + (orderItemPrice.TaxPercentage__c/100)) * (1 + (orderItemPrice.MarginPercentage__c / 100));
-
-                // orderItemPrice.PriceWithoutMargin__c = ((product.ProductionCost__c + orderItemPrice.FreightValue__c) * (1 + (orderItemPrice.TaxPercentage__c / 100)));
-                // orderItemPrice.Discount__c = (orderItemPrice.FinalPrice__c - orderItemPrice.UnitPrice) / orderItemPrice.FinalPrice__c;
-            }
+    public static void calcPrices(OrderItem orderitem) {
+        if (orderItem.ProductionCost__c != null && orderItem.FreightValue__c != null) {
+            orderItem.PriceWithoutMargin__c = ((orderItem.ProductionCost__c + orderItem.FreightValue__c) * (1 + (orderItem.TaxPercentage__c / 100)));
+            orderItem.FinalPrice__c = ((orderItem.ProductionCost__c + orderItem.FreightValue__c) * (1 + (orderItem.TaxPercentage__c/100)) * (1 + (orderItem.MarginPercentage__c / 100)));
+            orderItem.Discount__c = ((orderItem.FinalPrice__c - orderItem.UnitPrice) / orderItem.FinalPrice__c) * 100;
+            orderItem.TotalPriceFinal__c = orderItem.Quantity * OrderItem.FinalPrice__c;
+        } else {
+            orderItem.PriceWithoutMargin__c = 0.0;
+            orderItem.FinalPrice__c = 0.0;     
         }
     }
 }
