@@ -42,26 +42,31 @@ public with sharing class FreightHelper {
     }   
     
     public static void calcScore(List<Freight__c> freightList){
-
         for (Freight__c freight : freightList) {
-
+            String uniqueIdentifier = '';
             Integer score = 0;
             if (String.isNotBlank(freight.Product__c)) {
                 score += 1000;
+                uniqueIdentifier += freight.Product__c;
             }
             else if (String.isNotBlank(freight.ProductHierarchy__c)) {
                 score += 500;
+                uniqueIdentifier += freight.ProductHierarchy__c;
             }
             if(String.isNotBlank(freight.City__c)) {
                 score += 200;
+                uniqueIdentifier += freight.City__c;
             }
             else if (String.isNotBlank(freight.State__c)) {
                 score += 100;
+                uniqueIdentifier += freight.State__c;
             }
             else if (String.isNotBlank(freight.Country__c)) {
                 score += 50;
+                uniqueIdentifier += freight.Country__c;
             }
             freight.Score__c = score;
+            freight.uniqueIdentifier__c = uniqueIdentifier+freight.DistributionCenter__c;
         }
     }
 
@@ -74,8 +79,14 @@ public with sharing class FreightHelper {
             if ((newFreight.Product__c != oldFreight.Product__c) ||
                 (newFreight.ProductHierarchy__c != oldFreight.ProductHierarchy__c) ||
                 (newFreight.State__c != oldFreight.State__c) ||
-                (newFreight.Country__c != oldFreight.Country__c)                
+                (newFreight.Country__c != oldFreight.Country__c)              
             ) freightUpdatedList.add(newFreight);
+
+            else if (newFreight.UniqueIdentifier__c != oldFreight.UniqueIdentifier__c) {
+                newFreight.addError('Não é possível alterar o Identificado Único');
+            }
+
+
         }
         if (!freightUpdatedList.isEmpty()) calcScore(freightUpdatedList);
     }

@@ -18,5 +18,6 @@ public with sharing class MarginTriggerHandler {
 
     public void beforeUpdate() {
         MarginHelper.validateMarginCategory(this.oldMap, this.newMap);
+        MarginHelper.calcScore(this.oldMap, this.newMap);
     }
 }

@@ -13,10 +13,10 @@ public with sharing class TaxTriggerHandler {
     }
 
     public void beforeInsert() {
-
+        TaxHelper.validateTaxCategory(this.newRecords);
     }
 
     public void beforeUpdate() {
-
+        TaxHelper.validateTaxCategory(this.oldMap, this.newMap);
     }
 }
