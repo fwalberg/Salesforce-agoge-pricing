@@ -62,7 +62,7 @@ public with sharing class FreightHelper {
         uniqueIdentifier += freight.DistributionCenter__c;
 
         for(Freight__c oldFreight : freightStoredMap.values()) {
-            if (oldFreight.UniqueIdentifier__c.equals(uniqueIdentifier)) {
+            if (oldFreight.UniqueIdentifier__c.equals(uniqueIdentifier) && freight.Name != oldFreight.Name) {
                 freight.addError('Informações já cadastrado no Frete ' + oldfreight.Name);
             }
         }
@@ -114,13 +114,8 @@ public with sharing class FreightHelper {
             if ((newFreight.Product__c != oldFreight.Product__c) ||
                 (newFreight.ProductHierarchy__c != oldFreight.ProductHierarchy__c) ||
                 (newFreight.State__c != oldFreight.State__c) ||
-                (newFreight.Country__c != oldFreight.Country__c) ||
-                (newFreight.Status__c != oldFreight.Status__c)
+                (newFreight.Country__c != oldFreight.Country__c)
             ) freightUpdatedList.add(newFreight);
-
-            else if (newFreight.UniqueIdentifier__c != oldFreight.UniqueIdentifier__c) {
-                newFreight.addError('Não é possível alterar o Identificado Único');
-            }
         }
         if (!freightUpdatedList.isEmpty()) calcScore(freightUpdatedList);
     }

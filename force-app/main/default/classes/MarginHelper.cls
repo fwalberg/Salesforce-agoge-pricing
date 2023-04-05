@@ -95,7 +95,7 @@ public with sharing class MarginHelper {
         uniqueIdentifier += (String)margin.DistributionCenter__c;
 
         for (Margin__c oldMargin : marginStoredMap.values()) {
-            if (oldMargin.UniqueIdentifier__c.equals(uniqueIdentifier)) {
+            if (oldMargin.UniqueIdentifier__c.equals(uniqueIdentifier) && margin.Name != oldMargin.Name) {
                 margin.addError('Informações já cadastrado na Margem ' + oldMargin.Name);
             }        
         }

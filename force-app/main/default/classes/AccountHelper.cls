@@ -5,14 +5,15 @@ public with sharing class AccountHelper {
             if (String.isNotBlank(account.Cnpj__c)) {
                 if (!cnpjValidator(account)) {
                     account.addError('CNPJ inválido');
-                } else {
+                }
+                else {
+                    cnpjFormat(account);
                     checkCnjpDuplicate(account);
                 }
             }
             else {
                 account.addError('O campo CNPJ é obrigatório!');
             }
-
         }
     }
 
@@ -36,7 +37,10 @@ public with sharing class AccountHelper {
         ]);
 
         for (Account oldAccount : accountStoredMap.values()) {
-            if (oldAccount.Cnpj__c.equals(account.Cnpj__c)) {
+            String oldCnpj = oldAccount.Cnpj__c.replaceAll('[^0-9]', '');
+            String newCnpj = account.Cnpj__c.replaceAll('[^0-9]', '');
+           
+            if (newCnpj.equals(oldCnpj)) {
                 account.addError('CNJP já cadastrado para a conta ' + oldAccount.Name);
             }
         }    
@@ -44,7 +48,7 @@ public with sharing class AccountHelper {
 
     public static Boolean cnpjValidator(Account Account) {
         String cnpj = account.Cnpj__c;
-        cnpj = cnpj.replaceAll('[^\\d]+', '');
+        cnpj = cnpj.replaceAll('[^0-9]', '');
 
         if (cnpj.equals('00000000000000') || cnpj.equals('11111111111111') ||
         cnpj.equals('22222222222222') || cnpj.equals('33333333333333') ||
@@ -70,8 +74,6 @@ public with sharing class AccountHelper {
         if ((r == 0) || (r == 1))
             dig13 = 0;
         else dig13 = Integer.valueOf(11-r);
-
-        // Calculo do 2o. Digito Verificador
         sm = 0;
         peso = 2;
         for (i=12; i>=0; i--) {
@@ -86,11 +88,16 @@ public with sharing class AccountHelper {
         if ((r == 0) || (r == 1))
             dig14 = 0;
         else dig14 = Integer.valueOf(11-r);
-
-        // Verifica se os dígitos calculados conferem com os dígitos informados.
         if (dig13 == Integer.valueOf(cnpjString[12]) && dig14 == Integer.valueOf(cnpjString[13]))
         
          return true;
         else return false ;
+    }
+
+    public static String cnpjFormat(Account account) {
+        String cnpj = account.Cnpj__c;
+        String cnpjFormatted = cnpj.replaceAll('(\\d{2})(\\d{3})(\\d{3})(\\d{4})(\\d{2})', '$1.$2.$3/$4-$5');
+        account.Cnpj__c = cnpjFormatted;
+        return cnpjFormatted;
     }
 }
