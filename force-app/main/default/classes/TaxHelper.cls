@@ -49,7 +49,7 @@ public with sharing class TaxHelper {
         for(Tax__c oldTax : taxStoredMap.values()) {
             System.debug('OldTax ' + oldTax.UniqueIdentifier__c);
             System.debug('Unique ' + uniqueIdentifier);
-            if(oldTax.UniqueIdentifier__c.equals(uniqueIdentifier)) {
+            if(oldTax.UniqueIdentifier__c.equals(uniqueIdentifier) && tax.Name != oldTax.Name) {
                 tax.addError('Informações já cadastradas no Imposto ' + oldTax.Name);
             }
         }
