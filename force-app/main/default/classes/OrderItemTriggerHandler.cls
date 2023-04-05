@@ -22,5 +22,6 @@ public with sharing class OrderItemTriggerHandler {
 
     public void beforeUpdate() {
         OrderItemHelper.checkOrderItem(this.oldMap, this.newMap);
+        OrderItemHelper.updateOrderItem(this.oldMap, this.newMap);
     }
 }

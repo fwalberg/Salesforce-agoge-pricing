@@ -13,7 +13,7 @@ public with sharing class FreightTriggerHandler {
 
     public void beforeInsert() {
         FreightHelper.validateFreightCategories(this.newRecords);
-        FreightHelper.calcScore(this.newRecords);       
+        FreightHelper.calcScore(this.newRecords);
     }
 
     public void beforeUpdate() {

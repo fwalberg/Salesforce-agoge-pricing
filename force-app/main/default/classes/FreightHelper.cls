@@ -7,6 +7,8 @@ public with sharing class FreightHelper {
             }
             else if (!validateLocaleCategory(freight)) {
                 freight.addError('Informe apenas uma informação de localidade!');
+            } else {
+                checkFreightDuplicate(freight);
             }
         }
     }
@@ -20,7 +22,8 @@ public with sharing class FreightHelper {
             if ((newFreight.Product__c != oldFreight.Product__c) ||
                 (newFreight.ProductHierarchy__c != oldFreight.ProductHierarchy__c) ||
                 (newFreight.State__c != oldFreight.State__c) ||
-                (newFreight.Country__c != oldFreight.Country__c)                
+                (newFreight.Country__c != oldFreight.Country__c) ||
+                (newFreight.Status__c != oldFreight.Status__c)                
             ) freightUpdatedList.add(newFreight);
         }
         if (!freightUpdatedList.isEmpty()) validateFreightCategories(freightUpdatedList);
@@ -31,6 +34,38 @@ public with sharing class FreightHelper {
             (String.isNotBlank(freight.Product__c) && String.isNotBlank(freight.ProductHierarchy__c))
         ) return false;
         return true;        
+    }
+
+    public static void checkFreightDuplicate(Freight__c freight) {
+        Map<Id, Freight__c> freightStoredMap = new Map<Id, Freight__c>([
+            SELECT Id, UniqueIdentifier__c, Name
+            FROM Freight__c
+            WHERE UniqueIdentifier__c <> null
+        ]);
+         
+        String uniqueIdentifier = '';
+        if (String.isNotBlank(freight.Product__c)) {
+            uniqueIdentifier += freight.Product__c;
+        }
+        else if (String.isNotBlank(freight.ProductHierarchy__c)) {
+            uniqueIdentifier += freight.ProductHierarchy__c;
+        }
+        if(String.isNotBlank(freight.City__c)) {
+            uniqueIdentifier += freight.City__c;
+        }
+        else if (String.isNotBlank(freight.State__c)) {
+            uniqueIdentifier += freight.State__c;
+        }
+        else if (String.isNotBlank(freight.Country__c)) {
+            uniqueIdentifier += freight.Country__c;
+        }
+        uniqueIdentifier += freight.DistributionCenter__c;
+
+        for(Freight__c oldFreight : freightStoredMap.values()) {
+            if (oldFreight.UniqueIdentifier__c.equals(uniqueIdentifier)) {
+                freight.addError('Informações já cadastrado no Frete ' + oldfreight.Name);
+            }
+        }
     }
 
     public static Boolean validateLocaleCategory(Freight__c freight) {
@@ -79,14 +114,13 @@ public with sharing class FreightHelper {
             if ((newFreight.Product__c != oldFreight.Product__c) ||
                 (newFreight.ProductHierarchy__c != oldFreight.ProductHierarchy__c) ||
                 (newFreight.State__c != oldFreight.State__c) ||
-                (newFreight.Country__c != oldFreight.Country__c)              
+                (newFreight.Country__c != oldFreight.Country__c) ||
+                (newFreight.Status__c != oldFreight.Status__c)
             ) freightUpdatedList.add(newFreight);
 
             else if (newFreight.UniqueIdentifier__c != oldFreight.UniqueIdentifier__c) {
                 newFreight.addError('Não é possível alterar o Identificado Único');
             }
-
-
         }
         if (!freightUpdatedList.isEmpty()) calcScore(freightUpdatedList);
     }

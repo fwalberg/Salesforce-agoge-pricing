@@ -1,9 +1,18 @@
 public with sharing class MarginHelper {
     public static void validateMarginCategory(List<Margin__c> marginList) {
         for (Margin__c margin : marginList) {
-            if (!validateProductCategories(margin)) margin.addError('Verifique o preenchimento das informações do produto');
-            else if (!validateAccountCategories(margin)) margin.addError('Verifique o preenchimento das informações do Cliente');
-            else if (!validateLocaleCategories(margin))  margin.addError('Verifique o preenchimento das informações de localidade');
+            if (!validateProductCategories(margin)) {
+                margin.addError('Verifique o preenchimento das informações do produto');
+            }
+            else if (!validateAccountCategories(margin)) {
+                margin.addError('Verifique o preenchimento das informações do Cliente');
+            }
+            else if (!validateLocaleCategories(margin)) {
+                margin.addError('Verifique o preenchimento das informações de localidade');
+            }
+            else {
+                checkMarginDuplicate(margin);
+            }
         }
     }
 
@@ -54,6 +63,44 @@ public with sharing class MarginHelper {
         }
     }
 
+    public static void checkMarginDuplicate(Margin__c margin) {
+        Map<Id, Margin__c> marginStoredMap = new Map<Id, Margin__c>([
+            SELECT Id, UniqueIdentifier__c, Name
+            FROM Margin__c
+            WHERE UniqueIdentifier__c <> null
+        ]);
+
+        String uniqueIdentifier = '';
+        if (String.isNotBlank(margin.Product__c)) {
+            uniqueIdentifier += margin.Product__c;
+        }
+        else if (String.isNotBlank(margin.ProductHierarchy__c)) {
+            uniqueIdentifier += margin.ProductHierarchy__c;
+        }
+        if (String.isNotBlank(margin.Account__c)) {
+            uniqueIdentifier += margin.Account__c;
+        }
+        else if (String.isNotBlank(margin.AccountGroup__c)) {
+            uniqueIdentifier += margin.AccountGroup__c;
+        }
+        if (String.isNotBlank(margin.City__c)) {
+            uniqueIdentifier += margin.City__c;
+        }
+        else if (String.isNotBlank(margin.State__c)) {
+            uniqueIdentifier += margin.State__c;
+        }
+        else if (String.isNotBlank(margin.Country__c)) {
+            uniqueIdentifier += margin.Country__c;
+        }
+        uniqueIdentifier += (String)margin.DistributionCenter__c;
+
+        for (Margin__c oldMargin : marginStoredMap.values()) {
+            if (oldMargin.UniqueIdentifier__c.equals(uniqueIdentifier)) {
+                margin.addError('Informações já cadastrado na Margem ' + oldMargin.Name);
+            }        
+        }
+    }
+
     public static void calcScore(List<Margin__c> marginList) {
         
         for (Margin__c margin : marginList) {
@@ -90,7 +137,7 @@ public with sharing class MarginHelper {
                 uniqueIdentifier += margin.Country__c;
             }
             margin.Score__c = score;
-            margin.UniqueIdentifier__c = uniqueIdentifier + margin.DistributionCenter__c;
+            margin.UniqueIdentifier__c = uniqueIdentifier + (String)margin.DistributionCenter__c;
         }    
     }
 
@@ -109,9 +156,6 @@ public with sharing class MarginHelper {
             (newMargin.State__c != oldMargin.State__c) ||
             (newMargin.Country__c != oldMargin.Country__c)            
             ) marginListUpdated.add(newMargin);
-            else if (newMargin.UniqueIdentifier__c != oldMargin.UniqueIdentifier__c) {
-            newMargin.addError('Não é possível alterar o Identificado Único');
-            }
         }
         calcScore(marginListUpdated);
     }

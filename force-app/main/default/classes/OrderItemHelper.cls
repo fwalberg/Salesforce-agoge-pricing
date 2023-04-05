@@ -60,37 +60,40 @@ public with sharing class OrderItemHelper {
             accountsIdSet.add(order.AccountId);
             distributionIdSet.add(order.DistributionCenter__c);
             addressIdSet.add(order.Address__c);
+            cityIdSet.add(order.Address__r.City__c);
+            stateIdSet.add(order.Address__r.City__r.State__c);
+            countryIdSet.add(order.Address__r.City__r.State__r.Country__c);
         }
 
-        List<AccountAddress__c> addressList = [
-            SELECT Id, Account__c, City__c
-            FROM AccountAddress__c
-            WHERE Id IN: addressIdSet
-        ];
+        // List<AccountAddress__c> addressList = [
+        //     SELECT Id, Account__c, City__c
+        //     FROM AccountAddress__c
+        //     WHERE Id IN: addressIdSet
+        // ];
 
-        for (AccountAddress__c address : addressList) {
-            cityIdSet.add(address.City__c);
-        }
+        // for (AccountAddress__c address : addressList) {
+        //     cityIdSet.add(address.City__c);
+        // }
 
-        List<City__c> cityList = [
-            SELECT Id, State__c
-            FROM City__c
-            WHERE Id IN: cityIdSet
-        ];
+        // List<City__c> cityList = [
+        //     SELECT Id, State__c
+        //     FROM City__c
+        //     WHERE Id IN: cityIdSet
+        // ];
 
-        for (City__c city : cityList) {
-            stateIdSet.add(city.State__c);
-        }
+        // for (City__c city : cityList) {
+        //     stateIdSet.add(city.State__c);
+        // }
 
-        List<State__c> stateList = [
-            SELECT Id, Country__c
-            FROM State__c
-            WHERE Id IN: stateIdSet
-        ];
+        // List<State__c> stateList = [
+        //     SELECT Id, Country__c
+        //     FROM State__c
+        //     WHERE Id IN: stateIdSet
+        // ];
 
-        for (State__c state : stateList) {
-            countryIdSet.add(state.Country__c);
-        }
+        // for (State__c state : stateList) {
+        //     countryIdSet.add(state.Country__c);
+        // }
 
         Map<Id, Product2> productMap = new Map<Id, Product2>([
             SELECT Id, ProductHierarchy__c, ProductionCost__c
@@ -132,13 +135,13 @@ public with sharing class OrderItemHelper {
         List<Freight__c> freightList = [
             SELECT Id, Product__c, ProductHierarchy__c, DistributionCenter__c, City__c, State__c, Country__c, Value__c, Score__c, Status__c
             FROM Freight__c
-            WHERE (Product__c IN: idSetMap.get('roductIdSet') OR Product__c = null) AND 
-            (ProductHierarchy__c IN: idSetMap.get('hierarchyIdSet') OR ProductHierarchy__c = null) AND
-            (DistributionCenter__c IN: idSetMap.get('distributionIdSet') OR DistributionCenter__c = null) AND
-            (City__c IN: idSetMap.get('cityIdSet') OR  City__c = null) AND
-            (State__c IN: idSetMap.get('stateIdSet') OR  State__c = null) AND
-            (Country__c IN: idSetMap.get('countryIdSet') OR  Country__c = null) AND Status__c = 'Aprovado'
-            ORDER BY Score__c  DESC
+            WHERE (Product__c IN: idSetMap.get('productIdSet') OR Product__c = null) AND 
+                (ProductHierarchy__c IN: idSetMap.get('hierarchyIdSet') OR ProductHierarchy__c = null) AND
+                (DistributionCenter__c IN: idSetMap.get('distributionIdSet') OR DistributionCenter__c = null) AND
+                (City__c IN: idSetMap.get('cityIdSet') OR  City__c = null) AND
+                (State__c IN: idSetMap.get('stateIdSet') OR  State__c = null) AND
+                (Country__c IN: idSetMap.get('countryIdSet') OR  Country__c = null) AND Status__c = 'Aprovado'
+            ORDER BY Score__c DESC
         ];
 
         Map<Id, Order> orderMap = new Map<Id, Order>([
@@ -161,6 +164,21 @@ public with sharing class OrderItemHelper {
         return orderItemToFreight;
     }
 
+    public static void updateOrderItem(Map<Id, OrderItem> oldMap, Map<Id, OrderItem> newMap) {
+        List<OrderItem> orderItemList = new List<OrderItem>();
+        
+        for (OrderItem newOrderItem : newMap.values()) {
+            OrderItem oldOrderItem = oldMap.get(newOrderItem.Id);
+
+            orderItemList.add(newOrderItem);
+        }
+        searchFreight(orderItemList);
+        searchMargin(orderItemList);
+        searchTax(orderItemList);
+        calcValues(orderItemList);
+    }
+
+
     public static Map<OrderItem, Freight__c> orderItemToFreigth(List<OrderItem> orderItemList, List<Freight__c> freightList, Map<Id, Order> orderMap, Map<Id, Product2> productMap) {       
         Map<OrderItem, Freight__c> orderItemToFreight = new Map<OrderItem, Freight__c>();
          
@@ -168,10 +186,10 @@ public with sharing class OrderItemHelper {
             orderItemToFreight.put(orderItem, null);
 
             for (Freight__c freight : freightList) {
-                if(matchFreight(freight, OrderItem, orderMap, productMap)) {
+                if(matchFreight(freight, OrderItem, orderMap, productMap) && freight.Status__c == 'Aprovado') {
                     orderItemToFreight.put(orderItem, freight);
                     break;
-                }
+                } 
             }
         }
 
@@ -179,9 +197,12 @@ public with sharing class OrderItemHelper {
             
             Freight__c freight = orderItemToFreight.get(orderItemWithFreight);
         
-            if (freight != null) {
+            if (freight != null && freight.Value__c >= 0.0) {
                 orderItemWithFreight.Freight__c = freight.Id;
                 orderItemWithFreight.FreightValue__c = freight.Value__c;
+            } else {
+                orderItemWithFreight.Freight__c = null;
+                orderItemWithFreight.FreightValue__c = null;       
             }
         }
         return orderItemToFreight;
@@ -270,7 +291,7 @@ public with sharing class OrderItemHelper {
         Boolean state = (String.isBlank(margin.State__c) || margin.State__c == orderMap.get(orderItem.OrderId).Address__r.City__r.State__c);
         Boolean country = (String.isBlank(margin.Country__c) || margin.Country__c == orderMap.get(orderItem.OrderId).Address__r.City__r.State__r.Country__c);
         
-        return (product || hierarchy) && (account || accountGroup) && (city || state || country) && distribution;
+        return (product || hierarchy) && (account || accountGroup) && (city || state || country) || distribution;
     }
 
     // IMPOSTO - SELECIONAR O IMPOSTO COM BASE NO PRODUTO, CENTRO DE DISTRIBUIÇÃO E ESTADO 
@@ -348,14 +369,14 @@ public with sharing class OrderItemHelper {
     }
 
     public static void calcPrices(OrderItem orderitem) {
-        if (orderItem.ProductionCost__c != null && orderItem.FreightValue__c != null) {
+        if (orderItem.FreightValue__c != null && orderItem.MarginPercentage__c != null && orderItem.TaxPercentage__c != null) {
             orderItem.PriceWithoutMargin__c = ((orderItem.ProductionCost__c + orderItem.FreightValue__c) * (1 + (orderItem.TaxPercentage__c / 100)));
             orderItem.FinalPrice__c = ((orderItem.ProductionCost__c + orderItem.FreightValue__c) * (1 + (orderItem.TaxPercentage__c/100)) * (1 + (orderItem.MarginPercentage__c / 100)));
             orderItem.Discount__c = ((orderItem.FinalPrice__c - orderItem.UnitPrice) / orderItem.FinalPrice__c) * 100;
             orderItem.TotalPriceFinal__c = orderItem.Quantity * OrderItem.FinalPrice__c;
-        } else {
-            orderItem.PriceWithoutMargin__c = 0.0;
-            orderItem.FinalPrice__c = 0.0;     
+        } 
+        else {
+            orderItem.addError('Não está autorizada a venda deste produto devido a falta de parâmetros, contactar o time de Pricing!');
         }
     }
 }

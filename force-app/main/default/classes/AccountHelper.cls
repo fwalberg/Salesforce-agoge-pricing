@@ -5,12 +5,41 @@ public with sharing class AccountHelper {
             if (String.isNotBlank(account.Cnpj__c)) {
                 if (!cnpjValidator(account)) {
                     account.addError('CNPJ inválido');
+                } else {
+                    checkCnjpDuplicate(account);
                 }
             }
             else {
                 account.addError('O campo CNPJ é obrigatório!');
             }
+
         }
+    }
+
+    public static void checkCnpj(Map<Id, Account> oldMap, Map<Id, Account> newMap) {
+        List<Account> accountListUpdated = new List<Account>();
+        for (Account newAccount : newMap.values()) {
+            Account oldAccount = oldMap.get(newAccount.Id);
+            
+            if (newAccount.Cnpj__c != oldAccount.Cnpj__c) {
+                accountListUpdated.add(newAccount);
+            }
+        }
+        if(!accountListUpdated.isEmpty()) checkCnpj(accountListUpdated);
+    }
+    
+    public static void checkCnjpDuplicate(Account account) {
+        Map<Id, Account> accountStoredMap = new Map<Id, Account>([
+            SELECT Id, Name, Cnpj__c
+            FROM Account
+            WHERE Cnpj__c <> null
+        ]);
+
+        for (Account oldAccount : accountStoredMap.values()) {
+            if (oldAccount.Cnpj__c.equals(account.Cnpj__c)) {
+                account.addError('CNJP já cadastrado para a conta ' + oldAccount.Name);
+            }
+        }    
     }
 
     public static Boolean cnpjValidator(Account Account) {
@@ -63,17 +92,5 @@ public with sharing class AccountHelper {
         
          return true;
         else return false ;
-    }
-
-    public static void checkCnpj(Map<Id, Account> oldMap, Map<Id, Account> newMap) {
-        List<Account> accountListUpdated = new List<Account>();
-        for (Account newAccount : newMap.values()) {
-            Account oldAccount = oldMap.get(newAccount.Id);
-            
-            if (newAccount.Cnpj__c != oldAccount.Cnpj__c) {
-                accountListUpdated.add(newAccount);
-            }
-        }
-        if(!accountListUpdated.isEmpty()) checkCnpj(accountListUpdated);
     }
 }

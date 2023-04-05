@@ -6,8 +6,10 @@ public with sharing class TaxHelper {
             }
             else if(!validateProduct(tax)) {
                 tax.addError('Informe um produto');
-            }
-            generateUniqueIdentifier(tax);            
+            } else {
+                generateUniqueIdentifier(tax);  
+                checkTaxDuplicate(tax);  
+            }          
         }
     }
 
@@ -25,12 +27,31 @@ public with sharing class TaxHelper {
         validateTaxCategory(taxListUpdated);
     }
     
-    public static void generateUniqueIdentifier (Tax__c tax) {
+    public static String generateUniqueIdentifier (Tax__c tax) {
         String uniqueIdentifier = '';
         if ((String.isNotBlank(tax.DistributionCenter__c)) &&
             (String.isNotBlank(tax.State__c)) &&
             (String.isNotBlank(tax.Product__c))) {
-                tax.UniqueIdentifier__c = (String)tax.DistributionCenter__c + (String)tax.State__c + (String)tax.Product__c;
+            uniqueIdentifier = (String)tax.DistributionCenter__c + (String)tax.State__c + (String)tax.Product__c;
+            tax.UniqueIdentifier__c = uniqueIdentifier;
+        }
+        return uniqueIdentifier;
+    }
+
+    public static void checkTaxDuplicate(Tax__c tax) {
+        Map<Id, Tax__c> taxStoredMap = new Map<Id, Tax__c>([
+            SELECT UniqueIdentifier__c, Name
+            FROM Tax__c
+            WHERE UniqueIdentifier__c <> null
+        ]);
+        String uniqueIdentifier = generateUniqueIdentifier(tax);
+
+        for(Tax__c oldTax : taxStoredMap.values()) {
+            System.debug('OldTax ' + oldTax.UniqueIdentifier__c);
+            System.debug('Unique ' + uniqueIdentifier);
+            if(oldTax.UniqueIdentifier__c.equals(uniqueIdentifier)) {
+                tax.addError('Informações já cadastradas no Imposto ' + oldTax.Name);
+            }
         }
     }
     public static Boolean validateTax (Tax__c tax) {
