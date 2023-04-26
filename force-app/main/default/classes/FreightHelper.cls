@@ -3,10 +3,10 @@ public with sharing class FreightHelper {
     public static void validateFreightCategories (List<Freight__c> freightList) {
         for (Freight__c freight : freightList) {
             if (!validateProductCategory(freight)) {
-                freight.addError('Verifique as informações do Produto!');
+                freight.addError(System.label.FreightProductInformationError);
             }
             else if (!validateLocaleCategory(freight)) {
-                freight.addError('Informe apenas uma informação de localidade!');
+                freight.addError(System.label.FreightLocaleError);
             } else {
                 checkFreightDuplicate(freight);
             }
@@ -63,7 +63,7 @@ public with sharing class FreightHelper {
 
         for(Freight__c oldFreight : freightStoredMap.values()) {
             if (oldFreight.UniqueIdentifier__c.equals(uniqueIdentifier) && freight.Name != oldFreight.Name) {
-                freight.addError('Informações já cadastrado no Frete ' + oldfreight.Name);
+                freight.addError(System.label.DuplicatedFreightError + oldfreight.Name);
             }
         }
     }

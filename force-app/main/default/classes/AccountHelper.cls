@@ -4,7 +4,7 @@ public with sharing class AccountHelper {
         for (Account account : accountList) {
             if (String.isNotBlank(account.Cnpj__c)) {
                 if (!cnpjValidator(account)) {
-                    account.addError('CNPJ inválido');
+                    account.addError(System.label.CnpjError);
                 }
                 else {
                     cnpjFormat(account);
@@ -12,7 +12,7 @@ public with sharing class AccountHelper {
                 }
             }
             else {
-                account.addError('O campo CNPJ é obrigatório!');
+                account.addError(System.label.CnpjRequired);
             }
         }
     }
@@ -31,7 +31,7 @@ public with sharing class AccountHelper {
     
     public static void checkCnjpDuplicate(Account account) {
         Map<Id, Account> accountStoredMap = new Map<Id, Account>([
-            SELECT Id, Name, Cnpj__c
+            SELECT Id, Cnpj__c
             FROM Account
             WHERE Cnpj__c <> null
         ]);
@@ -41,7 +41,7 @@ public with sharing class AccountHelper {
             String newCnpj = account.Cnpj__c.replaceAll('[^0-9]', '');
            
             if (newCnpj.equals(oldCnpj)) {
-                account.addError('CNJP já cadastrado para a conta ' + oldAccount.Name);
+                account.addError(System.label.DuplicatedCnpjError + oldAccount.Name);
             }
         }    
     }
